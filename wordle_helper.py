@@ -75,10 +75,10 @@ def give_answer(guess, actual):
                 out[x] = "b"
     return "".join(out)
 
-def find_next_best_play_two(guess_list, possibility_list):
+def find_next_best_play_two(prev_guess_list, possibility_list):
     min_word = possibility_list[0]
-    min_score = len(guess_list) * len(possibility_list)
-    for guess in guess_list:
+    min_score = len(prev_guess_list) * len(possibility_list)
+    for guess in prev_guess_list:
         #print(guess, str(datetime.datetime.now()))
         total = 0
         for actual in possibility_list:
@@ -106,9 +106,46 @@ def next_best_play_aggregator(word_list, attempts = 100, size = 50):
     guess_dict = sorted(guess_dict.items(), key=lambda x:x[1], reverse=True)
     return guess_dict[0][0]
 
+def generate_blind_prev_guess_list(prev_guess_list):
+    """Generates a list of potential words for when the player exhausts the NLTK dictionary
+        prev_guess_list: a dictionary of format {word: result}
+
+        Returns all possible combinations of letters that fit in with the list of guesses
+    """
+    def recursive_fill(word):
+        alphabet = "abcdefghijklmnopqrstuvwxyz"
+        x = []
+        if "!" not in word:
+            return word
+        for l in alphabet:
+            x.append(word.replace("!", l, 1))
+        out = [recursive_fill(z) for z in x]
+        return out
+    def flatten (lin, lout = []):
+        for item in lin:
+            if type(item) == type(lout):
+                lout = lout + flatten(item)
+            else:
+                lout.append(item)
+        return lout
+    bootleg_word_list = []
+    known_letters = list("!!!!!")
+    for word in prev_guess_list:
+        for x, l in enumerate(prev_guess_list[word]):
+            if l == "g":
+                known_letters[x] = word[x]
+    known_letters = "".join(known_letters)
+    new_list = recursive_fill(known_letters)
+    flat_list = flatten(new_list)
+    for word in prev_guess_list:
+        flat_list = list(set(filter_out_words(flat_list, word, prev_guess_list[word])))
+    return flat_list
+
+
 def play_full_game(word_list):
     turn = 1
     suggestion = "raise"
+    prev_guess_list = {}
     print("Guess #", turn)
     print("For your first guess, try 'raise'")
     menutext = """Input a 5-letter sequence following based on your results:
@@ -126,25 +163,33 @@ def play_full_game(word_list):
             turn = turn - 1
             if suggestion in word_list:
                 word_list.remove(suggestion)
-            full_word_list.remove(suggestion)
+            if suggestion in full_word_list:
+                full_word_list.remove(suggestion)
         if x == "ggggg":
             return
+        prev_guess_list[suggestion] = x
         print("narrowning down word list")
         old_len = len(word_list)
         word_list = filter_out_words(word_list, suggestion, x)
         new_len = len(word_list)
-        print("out of ", old_len, " words, only ", new_len, " remain")
-        if len(word_list) <= 20:
-            print("remaining words:", word_list)
-        print("calculating next best play...")
-        if len(word_list) > 200:
-            suggestion = next_best_play_aggregator(word_list)
+        if new_len > 0:
+            print("out of ", old_len, " words, only ", new_len, " remain")
+            if len(word_list) <= 20:
+                print("remaining words:", word_list)
+            print("calculating next best play...")
+            if len(word_list) > 200:
+                suggestion = next_best_play_aggregator(word_list)
+            else:
+                suggestion = find_next_best_play(word_list)
+            if len(word_list) <= 50 and len(word_list) > 2 and turn != 5 and expected_bit_delivery(suggestion, word_list) < 2.3:
+                print("The best word won't narrow the list down very much")
+                print("Looking for a word that will narrow things down more...")
+                suggestion = find_next_best_play_two(full_word_list, word_list)
         else:
+            print("word list is empty! Time for blind guesses with words that probably aren't words")
+            word_list = generate_blind_prev_guess_list(prev_guess_list)
+            print("big list of guesses:", word_list)
             suggestion = find_next_best_play(word_list)
-        if len(word_list) <= 50 and len(word_list) > 2 and turn != 5 and expected_bit_delivery(suggestion, word_list) < 1.2:
-            print("The best word won't narrow the list down very much")
-            print("Looking for a word that will narrow things down more...")
-            suggestion = find_next_best_play_two(full_word_list, word_list)
         turn = turn + 1
         print("Guess #", turn)
         print("next guess: ", suggestion)
