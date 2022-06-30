@@ -112,8 +112,13 @@ def generate_blind_prev_guess_list(prev_guess_list):
 
         Returns all possible combinations of letters that fit in with the list of guesses
     """
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    for word in prev_guess_list:
+        for l in list(word):
+            if count_instance(word, l, prev_guess_list[word]) == 0:
+                if l in alphabet:
+                    alphabet = alphabet.replace(l, "", 1)
     def recursive_fill(word):
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
         x = []
         if "!" not in word:
             return word
@@ -124,7 +129,7 @@ def generate_blind_prev_guess_list(prev_guess_list):
     def flatten (lin, lout = []):
         for item in lin:
             if type(item) == type(lout):
-                lout = lout + flatten(item)
+                lout = list(set(lout + flatten(item)))
             else:
                 lout.append(item)
         return lout
@@ -138,7 +143,9 @@ def generate_blind_prev_guess_list(prev_guess_list):
     new_list = recursive_fill(known_letters)
     flat_list = flatten(new_list)
     for word in prev_guess_list:
-        flat_list = list(set(filter_out_words(flat_list, word, prev_guess_list[word])))
+        print(len(flat_list))
+        print(word, prev_guess_list[word])
+        flat_list = filter_out_words(flat_list, word, prev_guess_list[word])
     return flat_list
 
 
